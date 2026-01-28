@@ -133,7 +133,27 @@ async function registerEventSubListeners() {
 		},
 		body: JSON.stringify({
 			type: 'channel.chat.message',
-			version: '1',
+            version: '1',
+			condition: {
+				broadcaster_user_id: CHAT_CHANNEL_USER_ID,
+				user_id: BOT_USER_ID
+			},
+			transport: {
+				method: 'websocket',
+				session_id: websocketSessionID
+			}
+		})
+	});
+    let response2 = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+		method: 'POST',
+		headers: {
+			'Authorization': 'Bearer ' + process.env.OAUTH_TOKEN,
+			'Client-Id': CLIENT_ID,
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			type: 'channel.follow',
+            version: '1',
 			condition: {
 				broadcaster_user_id: CHAT_CHANNEL_USER_ID,
 				user_id: BOT_USER_ID
@@ -151,7 +171,9 @@ async function registerEventSubListeners() {
 		console.error(data);
 		process.exit(1);
 	} else {
-		const data = await response.json();
+		let data1 = await response.json();
+        let data2 = await response2.json();
+        const data = {...data1, ...data2};
 		console.log(`Subscribed to channel.chat.message [${data.data[0].id}]`);
 	}
 }
