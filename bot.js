@@ -60,7 +60,7 @@ function handleWebSocketMessage(data) {
 	switch (data.metadata.message_type) {
 		case 'session_welcome': // First message you get from the WebSocket server when connecting
 			websocketSessionID = data.payload.session.id; // Register the Session ID it gives us
-
+            sendChatMessage("Mad is online! VoHiYo");
 			// Listen to EventSub, which joins the chatroom from your bot's account
 			registerEventSubListeners();
 			break;
@@ -84,14 +84,25 @@ function handleWebSocketMessage(data) {
                         break;
                     }
                     break;    
-                case 'channel.follow':
-                        const username = data.payload.event.user_name;
-                        sendChatMessage("Danke fürs Folgen! Willkommen in der Familie" + username + "!");
-                        break;
-                case 'channel.subscribe':
-                        const subUsername = data.payload.event.user_name;
-                        sendChatMessage("Danke für's Subscriben " + subUsername + "! Du bist der Beste!");        
-                     
+               		case 'channel.follow': {
+    					const username = data.payload.event.user_name;
+    					sendChatMessage(`Danke fürs Follow, ${username}! 💜`);
+   						break;
+						}
+                	case 'channel.subscribe': {
+    					const username = data.payload.event.user_name;
+    					const tier = data.payload.event.tier; // 1000, 2000, 3000
+    					const isPrime = data.payload.event.is_prime;
+						let tierText = "Tier 1";
+    					if (tier === "2000") tierText = "Tier 2";
+    					if (tier === "3000") tierText = "Tier 3";
+    					if (isPrime) tierText = "Prime";
+
+    					sendChatMessage(
+        					`🎉 DANKE ${username} für das ${tierText}-Sub! 💜`
+    						);
+    					break;
+						}      
                 break;
 			}
 			break;
@@ -144,6 +155,26 @@ async function registerEventSubListeners() {
 			}
 		})
 	});
+	// channel.subscribe
+	let response3 = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+		method: 'POST',
+    	headers: {
+        	'Authorization': 'Bearer ' + process.env.OAUTH_TOKEN,
+        	'Client-Id': CLIENT_ID,
+        	'Content-Type': 'application/json'
+    	},
+    	body: JSON.stringify({
+        	type: 'channel.subscribe',
+        	version: '1',
+        	condition: {
+            	broadcaster_user_id: CHAT_CHANNEL_USER_ID
+        	},
+        	transport: {
+            	method: 'websocket',
+            	session_id: websocketSessionID
+        	}
+    	})
+	});
     let response2 = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
 		method: 'POST',
 		headers: {
@@ -156,7 +187,6 @@ async function registerEventSubListeners() {
             version: '1',
 			condition: {
 				broadcaster_user_id: CHAT_CHANNEL_USER_ID,
-				user_id: BOT_USER_ID
 			},
 			transport: {
 				method: 'websocket',
