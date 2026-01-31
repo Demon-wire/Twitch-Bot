@@ -57,21 +57,21 @@ function startWebSocketClient() {
 }
 
 function handleWebSocketMessage(data) {
-	switch (data.metadata.message_type) {
-		case 'session_welcome': // First message you get from the WebSocket server when connecting
-			websocketSessionID = data.payload.session.id; // Register the Session ID it gives us
+    switch (data.metadata.message_type) {
+        case 'session_welcome': // First message you get from the WebSocket server when connecting
+            websocketSessionID = data.payload.session.id; // Register the Session ID it gives us
             sendChatMessage("Mad is online! VoHiYo");
-			// Listen to EventSub, which joins the chatroom from your bot's account
-			registerEventSubListeners();
-			break;
-		case 'notification': // An EventSub notification has occurred, such as channel.chat.message
-            console.log(data.metadata.subscription_type);
-			switch (data.metadata.subscription_type) {
+            console.log("WebSocket session established. Session ID: " + websocketSessionID);
+            // Listen to EventSub, which joins the chatroom from your bot's account
+            registerEventSubListeners();
+            break;
+        case 'notification': // An EventSub notification has occurred, such as channel.chat.message
+            switch (data.metadata.subscription_type) {
                 case 'channel.chat.message':      
 
                     switch(data.payload.event.message.text.trim()) {
                     case "!lurk":
-                        sendChatMessage("VoHiYo");
+                       sendChatMessage("VoHiYo");
                         break;
                     case "!github":
                         sendChatMessage("Check out my GitHub at: https://github.com/Demon-wire");
@@ -82,31 +82,42 @@ function handleWebSocketMessage(data) {
                     case "!project":
                         sendChatMessage("Currently working on a Twitch Bot project using Node.js um NoirPI stolz zu machen!");
                         break;
-                    }
+                    } 
                     break;    
-               		case 'channel.follow': {
-    					const username = data.payload.event.user_name;
-    					sendChatMessage(`Danke fürs Follow, ${username}! 💜`);
-   						break;
-						}
-                	case 'channel.subscribe': {
-    					const username = data.payload.event.user_name;
-    					const tier = data.payload.event.tier; // 1000, 2000, 3000
-    					const isPrime = data.payload.event.is_prime;
-						let tierText = "Tier 1";
-    					if (tier === "2000") tierText = "Tier 2";
-    					if (tier === "3000") tierText = "Tier 3";
-    					if (isPrime) tierText = "Prime";
+                    case 'channel.follow': {
+                        const username = data.payload.event.user_name;
+                        sendChatMessage(`Danke fürs Follow, ${username}! 💜`);
+                        break;
+                        }
+                    case 'channel.subscription.gift': {
+                        const username = data.payload.event.user_name;
+                        const tier = data.payload.event.tier; // 1000, 2000, 3000
+                        let tierText = "Tier 1";
+                        if (tier === "2000") tierText = "Tier 2";
+                        if (tier === "3000") tierText = "Tier 3";
+                        sendChatMessage(`🎉 DANKE ${username} für das verschenkte ${tierText}-Sub an die Community! 💜`);
+                        break;
+                    }
+                    
+                    
+                    case 'channel.subscribe': {
+                        const username = data.payload.event.user_name;
+                        const tier = data.payload.event.tier; // 1000, 2000, 3000
+                        const isPrime = data.payload.event.is_prime;
+                        let tierText = "Tier 1";
+                        if (tier === "2000") tierText = "Tier 2";
+                        if (tier === "3000") tierText = "Tier 3";
+                        if (isPrime) tierText = "Prime";
 
-    					sendChatMessage(
-        					`🎉 DANKE ${username} für das ${tierText}-Sub! 💜`
-    						);
-    					break;
-						}      
+                        if (!gifted){ sendChatMessage(
+                            `🎉 DANKE ${username} für das ${tierText}-Sub! 💜`
+                            );}
+                        break;
+                        }      
                 break;
-			}
-			break;
-	}
+            }
+            break;
+    }
 }
 
 async function sendChatMessage(chatMessage) {
@@ -156,7 +167,7 @@ async function registerEventSubListeners() {
 		})
 	});
 	// channel.subscribe
-	let response3 = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+	let response2 = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
 		method: 'POST',
     	headers: {
         	'Authorization': 'Bearer ' + process.env.OAUTH_TOKEN,
@@ -175,7 +186,7 @@ async function registerEventSubListeners() {
         	}
     	})
 	});
-    let response2 = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+    let response3 = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
 		method: 'POST',
 		headers: {
 			'Authorization': 'Bearer ' + process.env.OAUTH_TOKEN,
@@ -184,7 +195,7 @@ async function registerEventSubListeners() {
 		},
 		body: JSON.stringify({
 			type: 'channel.follow',
-            version: '1',
+            version: '2',
 			condition: {
 				broadcaster_user_id: CHAT_CHANNEL_USER_ID,
 			},
@@ -194,6 +205,25 @@ async function registerEventSubListeners() {
 			}
 		})
 	});
+	let response4 = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+        method: 'POST',
+        headers: {
+            'Client-Id': CLIENT_ID,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            type: 'channel.subscribtion.gift',
+            version: '1',
+            condition: {
+                broadcaster_user_id: CHAT_CHANNEL_USER_ID,
+                user_id: BOT_USER_ID
+            },
+            transport: {
+                method: 'websocket',
+                session_id: websocketSessionID
+            }
+        })
+    });
 
 	if (response.status != 202) {
 		let data = await response.json();
@@ -203,7 +233,9 @@ async function registerEventSubListeners() {
 	} else {
 		let data1 = await response.json();
         let data2 = await response2.json();
-        const data = {...data1, ...data2};
+		let data3 = await response3.json();
+		let data4 = await response4.json();
+        const data = {...data1, ...data2, ...data3, ...data4};
 		console.log(`Subscribed to channel.chat.message [${data.data[0].id}]`);
 	}
 }
