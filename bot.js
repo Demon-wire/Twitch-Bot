@@ -1,9 +1,11 @@
 import WebSocket from "ws";
-import dotnev from "dotenv";
-dotnev.config({ path: "./tokens-bot.env" });
+import dotenv from "dotenv";
+dotenv.config({ path: "./tokens-bot.env" });
 const OAUTH_TOKEN = process.env.OAUTH_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const BOT_USER_ID = process.env.BOT_USER_ID;
+const BROADCASTER_TOKEN = process.env.BROADCASTER_TOKEN || OAUTH_TOKEN;
+const USE_BROADCASTER_TOKEN = process.env.USE_BROADCASTER_TOKEN === "true";
 
 const CHAT_CHANNEL_USER_ID = "1181593187"; // User ID of the channel where the bot will operate
 
@@ -39,7 +41,8 @@ async function getAuth() {
         console.error(data);
         process.exit(1);
     }
-
+	let data = await response.json();
+	console.log(data);
     console.log("Validated token.");
 }
 
@@ -182,28 +185,34 @@ async function registerEventSubListeners() {
         },
     );
     // channel.subscribe
-    let response_subscribe = await fetch(
-        "https://api.twitch.tv/helix/eventsub/subscriptions",
-        {
-            method: "POST",
-            headers: {
-                Authorization: "Bearer " + OAUTH_TOKEN,
-                "Client-Id": CLIENT_ID,
-                "Content-Type": "application/json",
+    let response_subscribe;
+    if (USE_BROADCASTER_TOKEN) {
+        response_subscribe = await fetch(
+            "https://api.twitch.tv/helix/eventsub/subscriptions",
+            {
+                method: "POST",
+                headers: {
+                    Authorization: "Bearer " + OAUTH_TOKEN,
+                    "Client-Id": CLIENT_ID,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    type: "channel.subscribe",
+                    version: "1",
+                    condition: {
+                        broadcaster_user_id: CHAT_CHANNEL_USER_ID,
+                    },
+                    transport: {
+                        method: "websocket",
+                        session_id: websocketSessionID,
+                    },
+                }),
             },
-            body: JSON.stringify({
-                type: "channel.subscribe",
-                version: "1",
-                condition: {
-                    broadcaster_user_id: CHAT_CHANNEL_USER_ID,
-                },
-                transport: {
-                    method: "websocket",
-                    session_id: websocketSessionID,
-                },
-            }),
-        },
-    );
+        );
+    } else {
+        console.log("Skipping subscription to 'channel.subscribe' because USE_BROADCASTER_TOKEN is not true (working with bot/mod account).");
+    }
+
     let response_follow = await fetch(
         "https://api.twitch.tv/helix/eventsub/subscriptions",
         {
@@ -227,28 +236,33 @@ async function registerEventSubListeners() {
             }),
         },
     );
-    let response_subscription_gift = await fetch(
-        "https://api.twitch.tv/helix/eventsub/subscriptions",
-        {
-            method: "POST",
-            headers: {
-                Authorization: "Bearer " + OAUTH_TOKEN,
-                "Client-Id": CLIENT_ID,
-                "Content-Type": "application/json",
+    let response_subscription_gift;
+    if (USE_BROADCASTER_TOKEN) {
+        response_subscription_gift = await fetch(
+            "https://api.twitch.tv/helix/eventsub/subscriptions",
+            {
+                method: "POST",
+                headers: {
+                    Authorization: "Bearer " + OAUTH_TOKEN,
+                    "Client-Id": CLIENT_ID,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    type: "channel.subscription.gift",
+                    version: "1",
+                    condition: {
+                        broadcaster_user_id: CHAT_CHANNEL_USER_ID,
+                    },
+                    transport: {
+                        method: "websocket",
+                        session_id: websocketSessionID,
+                    },
+                }),
             },
-            body: JSON.stringify({
-                type: "channel.subscription.gift",
-                version: "1",
-                condition: {
-                    broadcaster_user_id: CHAT_CHANNEL_USER_ID,
-                },
-                transport: {
-                    method: "websocket",
-                    session_id: websocketSessionID,
-                },
-            }),
-        },
-    );
+        );
+    } else {
+        console.log("Skipping subscription to 'channel.subscription.gift' because USE_BROADCASTER_TOKEN is not true (working with bot/mod account).");
+    }
 
     if (response_chat_message.status != 202) {
         let data = await response_chat_message.json();
@@ -257,15 +271,13 @@ async function registerEventSubListeners() {
                 response_chat_message.status,
         );
         console.error(data);
-        process.exit(1);
-    } else if (response_subscribe.status != 202) {
+    } else if (response_subscribe && response_subscribe.status != 202) {
         let data = await response_subscribe.json();
         console.error(
             "Failed to subscribe to channel.subscribe. API call returned status code " +
                 response_subscribe.status,
         );
         console.error(data);
-        process.exit(1);
     } else if (response_follow.status != 202) {
         let data = await response_follow.json();
         console.error(
@@ -273,21 +285,20 @@ async function registerEventSubListeners() {
                 response_follow.status,
         );
         console.error(data);
-        process.exit(1);
-    } else if (response_subscription_gift.status != 202) {
+    } else if (response_subscription_gift && response_subscription_gift.status != 202) {
         let data = await response_subscription_gift.json();
         console.error(
             "Failed to subscribe to channel.subscription.gift. API call returned status code " +
                 response_subscription_gift.status,
         );
         console.error(data);
-        process.exit(1);
     } else {
         let data1 = await response_chat_message.json();
-        let data2 = await response_subscribe.json();
+        let data2 = response_subscribe ? await response_subscribe.json() : null;
         let data3 = await response_follow.json();
-        let data4 = await response_subscription_gift.json();
-        const data = { ...data1, ...data2, ...data3, ...data4 };
-        console.log(`Subscribed to channel.chat.message [${data.data[0].id}]`);
+        let data4 = response_subscription_gift ? await response_subscription_gift.json() : null;
+        console.log(`Subscribed to channel.chat.message [${data1.data[0].id}]`);
+        if (data2) console.log("channel.subscribe subscription created.");
+        if (data4) console.log("channel.subscription.gift subscription created.");
     }
 }
