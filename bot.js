@@ -121,12 +121,9 @@ function handleWebSocketMessage(data) {
                         if (tier === "2000") tierText = "Tier 2";
                         if (tier === "3000") tierText = "Tier 3";
                         if (isPrime) tierText = "Prime";
-
-                        if (!gifted) {
-                            sendChatMessage(
-                                `🎉 DANKE ${username} für das ${tierText}-Sub! 💜`,
-                            );
-                        }
+                        sendChatMessage(
+                            `🎉 DANKE ${username} für das ${tierText}-Sub! 💜`,
+                        );
                         break;
                     }
                     break;
