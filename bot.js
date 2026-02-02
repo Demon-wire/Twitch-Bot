@@ -4,11 +4,14 @@ dotenv.config({ path: "./tokens-bot.env" });
 const OAUTH_TOKEN = process.env.OAUTH_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const BOT_USER_ID = process.env.BOT_USER_ID;
+const BROADCASTER_USER_ID = process.env.BROADCASTER_USER_ID;
+const BROADCASTER_OAUTH_TOKEN = process.env.BROADCASTER_OAUTH_TOKEN;
 
 const CHAT_CHANNEL_USER_ID = "1181593187"; // User ID of the channel where the bot will operate
 
 const EVENTSUB_WEBSOCKET_URL = "wss://eventsub.wss.twitch.tv/ws";
 var websocketSessionID;
+var websocketStreamerSessionID;
 
 // Start executing the bot from here
 (async () => {
@@ -17,6 +20,7 @@ var websocketSessionID;
 
     // Start WebSocket client and register handlers
     const websocketClient = startWebSocketClient();
+    const websocketStreamerClient = startStreamerWebSocketClient();
 })();
 
 // WebSocket will persist the application loop until you exit the program forcefully
@@ -37,7 +41,6 @@ async function getAuth() {
                 response.status,
         );
         console.error(data);
-        process.exit(1);
     }
 	let data = await response.json();
 	console.log(data);
@@ -58,6 +61,68 @@ function startWebSocketClient() {
     });
 
     return websocketClient;
+}
+function startStreamerWebSocketClient() {
+    let websocketClient = new WebSocket(EVENTSUB_WEBSOCKET_URL);
+
+    websocketClient.on("error", console.error);
+
+    websocketClient.on("open", () => {
+        console.log("WebSocket connection opened to " + EVENTSUB_WEBSOCKET_URL);
+    });
+
+    websocketClient.on("message", (data) => {
+        handleStreamerWebSocketMessage(JSON.parse(data.toString()));
+    });
+
+    return websocketClient;
+}
+function handleStreamerWebSocketMessage(data) {
+    switch (data.metadata.message_type) {
+        case "session_welcome": // First message you get from the WebSocket server when connecting
+            websocketStreamerSessionID = data.payload.session.id; // Register the Session ID it gives us
+            console.log(
+                "WebSocket session established. Session ID: " +
+                    websocketStreamerSessionID,
+            );
+            break;
+        case "notification": // An EventSub notification has occurred, such as channel.chat.message
+            switch (data.metadata.subscription_type) {
+                case "channel.follow": {
+                    const username = data.payload.event.user_name;
+                    sendChatMessage(`Danke fürs Follow, ${username}! 💜`);
+                    break;
+                }
+                case "channel.subscription.gift": {
+                    const username = data.payload.event.user_name;
+                    const tier = data.payload.event.tier; // 1000, 2000, 3000
+                    let tierText = "Tier 1";
+                    if (tier === "2000") tierText = "Tier 2";
+                    if (tier === "3000") tierText = "Tier 3";
+                    sendChatMessage(
+                        `🎉 DANKE ${username} für das verschenkte ${tierText}-Sub an die Community! 💜`,
+                    );
+                    break;
+                }
+
+                case "channel.subscribe":
+                    {
+                        const username = data.payload.event.user_name;
+                        const tier = data.payload.event.tier; // 1000, 2000, 3000
+                        const isPrime = data.payload.event.is_prime;
+                        let tierText = "Tier 1";
+                        if (tier === "2000") tierText = "Tier 2";
+                        if (tier === "3000") tierText = "Tier 3";
+                        if (isPrime) tierText = "Prime";
+                        sendChatMessage(
+                            `🎉 DANKE ${username} für das ${tierText}-Sub! 💜`,
+                        );
+                        break;
+                    }
+                    break;
+            }
+            break;
+    }
 }
 
 function handleWebSocketMessage(data) {
@@ -97,44 +162,10 @@ function handleWebSocketMessage(data) {
                             );
                             break;
                     }
-                    break;
-                case "channel.follow": {
-                    const username = data.payload.event.user_name;
-                    sendChatMessage(`Danke fürs Follow, ${username}! 💜`);
-                    break;
-                }
-                case "channel.subscription.gift": {
-                    const username = data.payload.event.user_name;
-                    const tier = data.payload.event.tier; // 1000, 2000, 3000
-                    let tierText = "Tier 1";
-                    if (tier === "2000") tierText = "Tier 2";
-                    if (tier === "3000") tierText = "Tier 3";
-                    sendChatMessage(
-                        `🎉 DANKE ${username} für das verschenkte ${tierText}-Sub an die Community! 💜`,
-                    );
-                    break;
-                }
-
-                case "channel.subscribe":
-                    {
-                        const username = data.payload.event.user_name;
-                        const tier = data.payload.event.tier; // 1000, 2000, 3000
-                        const isPrime = data.payload.event.is_prime;
-                        let tierText = "Tier 1";
-                        if (tier === "2000") tierText = "Tier 2";
-                        if (tier === "3000") tierText = "Tier 3";
-                        if (isPrime) tierText = "Prime";
-                        sendChatMessage(
-                            `🎉 DANKE ${username} für das ${tierText}-Sub! 💜`,
-                        );
-                        break;
-                    }
-                    break;
-            }
-            break;
+            }        
     }
 }
-
+//send chat message
 async function sendChatMessage(chatMessage) {
     let response = await fetch("https://api.twitch.tv/helix/chat/messages", {
         method: "POST",
@@ -187,7 +218,7 @@ async function registerEventSubListeners() {
             {
                 method: "POST",
                 headers: {
-                    Authorization: "Bearer " + OAUTH_TOKEN,
+                    Authorization: "Bearer " + BROADCASTER_OAUTH_TOKEN,
                     "Client-Id": CLIENT_ID,
                     "Content-Type": "application/json",
                 },
@@ -199,18 +230,18 @@ async function registerEventSubListeners() {
                     },
                     transport: {
                         method: "websocket",
-                        session_id: websocketSessionID,
+                        session_id: websocketStreamerSessionID,
                     },
                 }),
             },
         );
-
+    // channel.follow
     let response_follow = await fetch(
         "https://api.twitch.tv/helix/eventsub/subscriptions",
         {
             method: "POST",
             headers: {
-                Authorization: "Bearer " + OAUTH_TOKEN,
+                Authorization: "Bearer " + BROADCASTER_OAUTH_TOKEN,
                 "Client-Id": CLIENT_ID,
                 "Content-Type": "application/json",
             },
@@ -219,21 +250,22 @@ async function registerEventSubListeners() {
                 version: "2",
                 condition: {
                     broadcaster_user_id: CHAT_CHANNEL_USER_ID,
-                    moderator_user_id: BOT_USER_ID,
+                    moderator_user_id: CHAT_CHANNEL_USER_ID,
                 },
                 transport: {
                     method: "websocket",
-                    session_id: websocketSessionID,
+                    session_id: websocketStreamerSessionID,
                 },
             }),
         },
     );
-        let response_subscription_gift = await fetch(
+    // channel.subscription.gift
+    let response_subscription_gift = await fetch(
             "https://api.twitch.tv/helix/eventsub/subscriptions",
             {
                 method: "POST",
                 headers: {
-                    Authorization: "Bearer " + OAUTH_TOKEN,
+                    Authorization: "Bearer " + BROADCASTER_OAUTH_TOKEN,
                     "Client-Id": CLIENT_ID,
                     "Content-Type": "application/json",
                 },
@@ -245,7 +277,7 @@ async function registerEventSubListeners() {
                     },
                     transport: {
                         method: "websocket",
-                        session_id: websocketSessionID,
+                        session_id: websocketStreamerSessionID,
                     },
                 }),
             },
