@@ -4,8 +4,6 @@ dotenv.config({ path: "./tokens-bot.env" });
 const OAUTH_TOKEN = process.env.OAUTH_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const BOT_USER_ID = process.env.BOT_USER_ID;
-const BROADCASTER_TOKEN = process.env.BROADCASTER_TOKEN || OAUTH_TOKEN;
-const USE_BROADCASTER_TOKEN = process.env.USE_BROADCASTER_TOKEN === "true";
 
 const CHAT_CHANNEL_USER_ID = "1181593187"; // User ID of the channel where the bot will operate
 
@@ -79,7 +77,9 @@ function handleWebSocketMessage(data) {
                 case "channel.chat.message":
                     switch (data.payload.event.message.text.trim()) {
                         case "!lurk":
-                            sendChatMessage("VoHiYo");
+                            sendChatMessage(
+                                "VoHiYo"
+                            );
                             break;
                         case "!github":
                             sendChatMessage(
@@ -160,34 +160,29 @@ async function sendChatMessage(chatMessage) {
 }
 
 async function registerEventSubListeners() {
-    // Register channel.chat.message
-    let response_chat_message = await fetch(
-        "https://api.twitch.tv/helix/eventsub/subscriptions",
-        {
-            method: "POST",
-            headers: {
-                Authorization: "Bearer " + OAUTH_TOKEN,
-                "Client-Id": CLIENT_ID,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                type: "channel.chat.message",
-                version: "1",
-                condition: {
-                    broadcaster_user_id: CHAT_CHANNEL_USER_ID,
-                    user_id: BOT_USER_ID,
-                },
-                transport: {
-                    method: "websocket",
-                    session_id: websocketSessionID,
-                },
-            }),
-        },
-    );
+// Register channel.chat.message
+	let response_chat_message = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+		method: 'POST',
+		headers: {
+			'Authorization': 'Bearer ' + OAUTH_TOKEN,
+			'Client-Id': CLIENT_ID,
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			type: 'channel.chat.message',
+			version: '1',
+			condition: {
+				broadcaster_user_id: CHAT_CHANNEL_USER_ID,
+				user_id: BOT_USER_ID
+			},
+			transport: {
+				method: 'websocket',
+				session_id: websocketSessionID
+			}
+		})
+	});
     // channel.subscribe
-    let response_subscribe;
-    if (USE_BROADCASTER_TOKEN) {
-        response_subscribe = await fetch(
+        let response_subscribe = await fetch(
             "https://api.twitch.tv/helix/eventsub/subscriptions",
             {
                 method: "POST",
@@ -209,9 +204,6 @@ async function registerEventSubListeners() {
                 }),
             },
         );
-    } else {
-        console.log("Skipping subscription to 'channel.subscribe' because USE_BROADCASTER_TOKEN is not true (working with bot/mod account).");
-    }
 
     let response_follow = await fetch(
         "https://api.twitch.tv/helix/eventsub/subscriptions",
@@ -236,9 +228,7 @@ async function registerEventSubListeners() {
             }),
         },
     );
-    let response_subscription_gift;
-    if (USE_BROADCASTER_TOKEN) {
-        response_subscription_gift = await fetch(
+        let response_subscription_gift = await fetch(
             "https://api.twitch.tv/helix/eventsub/subscriptions",
             {
                 method: "POST",
@@ -260,9 +250,6 @@ async function registerEventSubListeners() {
                 }),
             },
         );
-    } else {
-        console.log("Skipping subscription to 'channel.subscription.gift' because USE_BROADCASTER_TOKEN is not true (working with bot/mod account).");
-    }
 
     if (response_chat_message.status != 202) {
         let data = await response_chat_message.json();
