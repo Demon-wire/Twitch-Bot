@@ -1,6 +1,6 @@
 import WebSocket from "ws";
 import dotenv from "dotenv";
-dotenv.config({ path: "./tokens-bot.env" });
+dotenv.config();
 const OAUTH_TOKEN = process.env.OAUTH_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const BOT_USER_ID = process.env.BOT_USER_ID;
