@@ -158,7 +158,7 @@ function handleWebSocketMessage(data) {
                             break;
                         case "!project":
                             sendChatMessage(
-                                "Currently working on a Twitch Bot project using Node.js um NoirPI stolz zu machen!",
+                                "I want to make a little Box that can regonize any glass and refill it with water. I want to 3D-Print the design and also programm the chip myself, if you have questions just ask!",
                             );
                             break;
                     }
